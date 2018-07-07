@@ -1,5 +1,6 @@
 const fetch     = require("node-fetch")
 const murmur    = require("murmurhash")
+const deepmerge = require("deepmerge")
 
 const query = `query TokenById($token: UUID!) {
     tokenById(id: $token) {
@@ -39,6 +40,7 @@ const idsProxy = {
         if(!target.possibleIds.has(name)) return console.warn(`id "${name}" is not registred`)
         target._expBySalt[name].forEach(exp => delete target[exp])
         target._idsValues[name] = value
+        target._vars = null
         TRACK: for(let salt in target._conf[name] || {}) {
             const hash = murmur.v3(`${salt} - ${name}:${value}`) / 0xffffffff
             for(let variant of target._conf[name][salt]) {
@@ -63,8 +65,18 @@ class AyBee {
         this._idsValues     = {}
         this.experiments    = {}
         this._expBySalt     = {}
-        this.vars           = {}
         this._conf          = {}
+        this._varsByExpVar  = {}
+        this._vars          = null
+    }
+
+    get vars() {
+        let vars = {}
+        if(this._vars !== null) return this._vars
+        for(let exp in this.experiments) {
+            vars = deepmerge(vars, this._varsByExpVar[exp][this.experiments[exp]] || {})
+        }
+        return vars
     }
 
     fetchConfig() {
@@ -84,6 +96,13 @@ class AyBee {
             .then(conf => {
                 conf.forEach(c => {
                     this.possibleIds = new Set([ ...this.possibleIds, c.identifier ])
+                    this._varsByExpVar = {
+                        ...this._varsByExpVar,
+                        [c.experiment]: {
+                            ...(this._varsByExpVar[c.experiment] || {}),
+                            [c.variant]: c.variables
+                        }
+                    }
                     this._expBySalt = {
                         ...this._expBySalt,
                         [c.identifier]: new Set([

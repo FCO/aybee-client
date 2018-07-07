@@ -14,9 +14,11 @@
     }
 
     const {
-        var1,
-        var2                = 42,
-        var3                = 13,
-        var4: anotherVar    = 3.14
+        bla,
+        ble,
+        bli                = 42,
+        blo                = 13,
+        blu: anotherVar    = 3.14
     } = ayBee.vars                                      // get variables defined by variants
+    console.log({bla, ble, bli, blo, anotherVar})
 })()
