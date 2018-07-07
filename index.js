@@ -31,12 +31,12 @@ const util = require("util")
 const idsProxy = {
     get(target, name) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
-        if(!target.possibleIds.has(name)) throw `id "${name}" is not registred`
+        if(!target.possibleIds.has(name)) return console.warn(`id "${name}" is not registred`)
         return target._idsValues[name]
     },
     set(target, name, value) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
-        if(!target.possibleIds.has(name)) throw `id "${name}" is not registred`
+        if(!target.possibleIds.has(name)) return console.warn(`id "${name}" is not registred`)
         target._expBySalt[name].forEach(exp => delete target[exp])
         target._idsValues[name] = value
         TRACK: for(let salt in target._conf[name] || {}) {
