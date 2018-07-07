@@ -37,7 +37,10 @@ const idsProxy = {
     },
     set(target, name, value) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
-        if(!target.possibleIds.has(name)) return console.warn(`id "${name}" is not registred`)
+        if(!target.possibleIds.has(name)) {
+            console.warn(`id "${name}" is not registred`)
+            return false
+        }
         target._expBySalt[name].forEach(exp => delete target[exp])
         target._idsValues[name] = value
         target._vars = null
@@ -56,18 +59,30 @@ const idsProxy = {
     },
 }
 
+const metricsProxy = {
+    get(target, name) {
+        if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
+        if(!target.possibleMetrics.has(name)) console.warn(`Metric "${name}" is not registred`)
+        return data => {
+            console.log(`sendMetric(${name}, ${data})`)
+        }
+    },
+}
+
 class AyBee {
     constructor(token, url = "http://127.0.0.1:5000/graphql") {
-        this.token          = token
-        this.url            = url
-        this.ids            = new Proxy(this, idsProxy)
-        this.possibleIds    = new Set()
-        this._idsValues     = {}
-        this.experiments    = {}
-        this._expBySalt     = {}
-        this._conf          = {}
-        this._varsByExpVar  = {}
-        this._vars          = null
+        this.token              = token
+        this.url                = url
+        this.ids                = new Proxy(this, idsProxy)
+        this.possibleIds        = new Set()
+        this.metrics            = new Proxy(this, metricsProxy)
+        this.possibleMetrics    = new Set()
+        this._idsValues         = {}
+        this.experiments        = {}
+        this._expBySalt         = {}
+        this._conf              = {}
+        this._varsByExpVar      = {}
+        this._vars              = null
     }
 
     get vars() {
