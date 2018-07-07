@@ -41,8 +41,7 @@ const idsProxy = {
         target._idsValues[name] = value
         TRACK: for(let salt in target._conf[name] || {}) {
             const hash = murmur.v3(`${salt} - ${name}:${value}`) / 0xffffffff
-            for(let variantName in target._conf[name][salt]) {
-                const variant = target._conf[name][salt][variantName]
+            for(let variant of target._conf[name][salt]) {
                 for(let range of variant.range) {
                     if(hash >= range.start.value && hash < range.end.value) {
                         target.experiments[variant.experiment] = variant.variant
@@ -96,14 +95,14 @@ class AyBee {
                         ...this._conf,
                         [c.identifier]: {
                             ...(this._conf[c.identifier] || {}),
-                            [c.salt]: {
-                                ...((this._conf[c.identifier] || {[c.salt]: {}})[c.salt] || {}),
-                                [`${c.experiment} - ${c.variant}`]: {
+                            [c.salt]: [
+                                ...((this._conf[c.identifier] || {[c.salt]: []})[c.salt] || []),
+                                {
                                     range:      c.ranges,
                                     variant:    c.variant,
                                     experiment: c.experiment,
                                 }
-                            }
+                            ]
                         }
                     }
                 })
