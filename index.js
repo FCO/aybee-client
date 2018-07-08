@@ -4,9 +4,15 @@ const murmur    = require("murmurhash")
 const deepmerge = require("deepmerge")
 const Influx    = require("influx")
 const os        = require('os')
+const util      = require("util")
+const uuidv4    = require('uuid/v4');
 
 const query = `query TokenById($token: UUID!) {
     tokenById(id: $token) {
+        metricConfig {
+            metricStorage
+            conf
+        }
         config {
             nodes {
                 track
@@ -31,7 +37,10 @@ const query = `query TokenById($token: UUID!) {
     }
 }
 `
-const util = require("util")
+
+const createMetricStorage = {
+    INFLUXDB: conf => new Influx.InfluxDB(conf)
+}
 const idsProxy = {
     get(target, name) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
@@ -44,15 +53,16 @@ const idsProxy = {
             console.warn(`id "${name}" is not registred`)
             return false
         }
+        target.newSession()
         target._expBySalt[name].forEach(exp => delete target[exp])
         target._idsValues[name] = value
-        target._vars = null
         TRACK: for(let salt in target._conf[name] || {}) {
             const hash = murmur.v3(`${salt} - ${name}:${value}`) / 0xffffffff
             for(let variant of target._conf[name][salt]) {
                 for(let range of variant.range) {
                     if(hash >= range.start.value && hash < range.end.value) {
-                        target.experiments[variant.experiment] = variant.variant
+                        if(variant.variant)
+                            target.experiments[variant.experiment] = variant.variant
                         continue TRACK
                     }
                 }
@@ -86,6 +96,12 @@ class AyBee {
         this._conf              = {}
         this._varsByExpVar      = {}
         this._vars              = null
+        this.newSession()
+    }
+
+    newSession() {
+        this.sessionId = uuidv4()
+        this._vars = null
     }
 
     get vars() {
@@ -110,14 +126,13 @@ class AyBee {
             })
         })
         const body = await resp.json()
+        console.log(body)
         if(body.data.tokenById === null) {
             throw "Invalid Token!!!"
         }
+        const metricConf = body.data.tokenById.metricConfig;
+        this._metric = createMetricStorage[metricConf.metricStorage.toUpperCase()](metricConf.conf)
         const conf = body.data.tokenById.config.nodes
-        this.influx = new Influx.InfluxDB({
-            host: "localhost",
-            database: "aybee"
-        })
         conf.forEach(c => {
             this.possibleIds = new Set([ ...this.possibleIds, c.identifier ])
             this._varsByExpVar = {
@@ -151,21 +166,23 @@ class AyBee {
         })
     }
 
-    async sendMetric(metric, data) {
-        try {
-            return await this.influx.writePoints([
-                {
-                    measurement: "metrics",
-                    tags: { ...this.experiments, metric },
-                    fields: {
-                        ...data,
-                        host:       os.hostname(),
-                    },
-                }
-            ])
-        } catch(err) {
-            console.error(`Error saving data to InfluxDB! ${err.stack}`)
-        }
+    async sendMetric(metric, data = {}) {
+        console.log(`metric: ${metric}; data: ${data}`)
+        return await this._metric.writePoints([
+            {
+                measurement: "metrics",
+                tags: {
+                    ...this.experiments,
+                    metric
+                },
+                fields: {
+                    sessionId: this.sessionId,
+                    ...data,
+                    metric,
+                    host:       os.hostname(),
+                },
+            }
+        ])
     }
 }
 
