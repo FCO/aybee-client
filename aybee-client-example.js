@@ -1,6 +1,6 @@
 (async () => {
     const AyBee = require(".")
-    const ayBee = await AyBee.config("b12458b6-815a-11e8-ba08-83307a5aa975")
+    const ayBee = await AyBee.config("979fc2bc-6f54-11e8-a172-7fb168c1de7f")
 
     ayBee.ids.accountId = 123                           // warns if accountId is not registred
     ayBee.ids.requestId = 123                           // warns if requestId is not registred

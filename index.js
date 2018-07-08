@@ -2,7 +2,8 @@ require('es6-promise').polyfill();
 require('isomorphic-fetch');
 const murmur    = require("murmurhash")
 const deepmerge = require("deepmerge")
-const Influx = require("influx")
+const Influx    = require("influx")
+const os        = require('os')
 
 const query = `query TokenById($token: UUID!) {
     tokenById(id: $token) {
@@ -156,7 +157,10 @@ class AyBee {
                 {
                     measurement: "metrics",
                     tags: { ...this.experiments, metric },
-                    fields: { ...data, host: "aqui" },
+                    fields: {
+                        ...data,
+                        host:       os.hostname(),
+                    },
                 }
             ])
         } catch(err) {

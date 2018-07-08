@@ -14,6 +14,10 @@
     "es6-promise": "^4.2.4",
     "influx": "^5.0.7",
     "isomorphic-fetch": "^2.2.1",
-    "murmurhash": "0.0.2"
+    "murmurhash": "0.0.2",
+    "webpack": "^4.15.1"
+  },
+  "devDependencies": {
+    "webpack-cli": "^3.0.8"
   }
 }
