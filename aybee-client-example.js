@@ -22,5 +22,5 @@
     } = ayBee.vars                                      // get variables defined by variants
     console.log({bla, ble, bli, blo, anotherVar})
 
-    ayBee.metrics.productVisualized({product: 123})     // send metrics
+    ayBee.metrics.productVisualized({product: "123"})     // send metrics
 })()

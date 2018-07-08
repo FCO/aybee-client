@@ -2,6 +2,7 @@ require('es6-promise').polyfill();
 require('isomorphic-fetch');
 const murmur    = require("murmurhash")
 const deepmerge = require("deepmerge")
+const Influx = require("influx")
 
 const query = `query TokenById($token: UUID!) {
     tokenById(id: $token) {
@@ -65,7 +66,7 @@ const metricsProxy = {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
         if(!target.possibleMetrics.has(name)) console.warn(`Metric "${name}" is not registred`)
         return data => {
-            console.log(`sendMetric(${name}, ${JSON.stringify(data)})`)
+            target.sendMetric(name, data)
         }
     },
 }
@@ -95,8 +96,8 @@ class AyBee {
         return vars
     }
 
-    fetchConfig() {
-        return fetch(this.url, {
+    async fetchConfig() {
+        const resp = await fetch(this.url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -107,41 +108,60 @@ class AyBee {
                 variables: { token: this.token },
             })
         })
-            .then(r => r.json())
-            .then(d => d.data.tokenById.config.nodes)
-            .then(conf => {
-                conf.forEach(c => {
-                    this.possibleIds = new Set([ ...this.possibleIds, c.identifier ])
-                    this._varsByExpVar = {
-                        ...this._varsByExpVar,
-                        [c.experiment]: {
-                            ...(this._varsByExpVar[c.experiment] || {}),
-                            [c.variant]: c.variables
+        const body = await resp.json()
+        if(body.data.tokenById === null) {
+            throw "Invalid Token!!!"
+        }
+        const conf = body.data.tokenById.config.nodes
+        this.influx = new Influx.InfluxDB({
+            host: "localhost",
+            database: "aybee"
+        })
+        conf.forEach(c => {
+            this.possibleIds = new Set([ ...this.possibleIds, c.identifier ])
+            this._varsByExpVar = {
+                ...this._varsByExpVar,
+                [c.experiment]: {
+                    ...(this._varsByExpVar[c.experiment] || {}),
+                    [c.variant]: c.variables
+                }
+            }
+            this._expBySalt = {
+                ...this._expBySalt,
+                [c.identifier]: new Set([
+                    ...(this._expBySalt[c.identifier] || []),
+                    c.experiment
+                ])
+            }
+            this._conf = {
+                ...this._conf,
+                [c.identifier]: {
+                    ...(this._conf[c.identifier] || {}),
+                    [c.salt]: [
+                        ...((this._conf[c.identifier] || {[c.salt]: []})[c.salt] || []),
+                        {
+                            range:      c.ranges,
+                            variant:    c.variant,
+                            experiment: c.experiment,
                         }
-                    }
-                    this._expBySalt = {
-                        ...this._expBySalt,
-                        [c.identifier]: new Set([
-                            ...(this._expBySalt[c.identifier] || []),
-                            c.experiment
-                        ])
-                    }
-                    this._conf = {
-                        ...this._conf,
-                        [c.identifier]: {
-                            ...(this._conf[c.identifier] || {}),
-                            [c.salt]: [
-                                ...((this._conf[c.identifier] || {[c.salt]: []})[c.salt] || []),
-                                {
-                                    range:      c.ranges,
-                                    variant:    c.variant,
-                                    experiment: c.experiment,
-                                }
-                            ]
-                        }
-                    }
-                })
-            })
+                    ]
+                }
+            }
+        })
+    }
+
+    async sendMetric(metric, data) {
+        try {
+            return await this.influx.writePoints([
+                {
+                    measurement: "metrics",
+                    tags: { ...this.experiments, metric },
+                    fields: { ...data, host: "aqui" },
+                }
+            ])
+        } catch(err) {
+            console.error(`Error saving data to InfluxDB! ${err.stack}`)
+        }
     }
 }
 

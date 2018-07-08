@@ -12,6 +12,7 @@
   "dependencies": {
     "deepmerge": "^2.1.1",
     "es6-promise": "^4.2.4",
+    "influx": "^5.0.7",
     "isomorphic-fetch": "^2.2.1",
     "murmurhash": "0.0.2"
   }
