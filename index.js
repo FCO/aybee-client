@@ -167,22 +167,22 @@ class AyBee {
     }
 
     async sendMetric(metric, data = {}) {
-        console.log(`metric: ${metric}; data: ${data}`)
-        return await this._metric.writePoints([
-            {
-                measurement: "metrics",
-                tags: {
-                    ...this.experiments,
-                    metric
-                },
-                fields: {
-                    sessionId: this.sessionId,
-                    ...data,
-                    metric,
-                    host:       os.hostname(),
-                },
-            }
-        ])
+        const toSend = {
+            measurement: "metrics",
+            tags: {
+                ...this.experiments,
+                metric
+            },
+            fields: {
+                sessionId: this.sessionId,
+                ...data,
+                metric,
+                host:       os.hostname(),
+            },
+        }
+
+        //console.log(`data:`, toSend)
+        return await this._metric.writePoints([ toSend ])
     }
 }
 
