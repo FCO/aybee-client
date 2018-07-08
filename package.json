@@ -11,7 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "deepmerge": "^2.1.1",
-    "murmurhash": "0.0.2",
-    "node-fetch": "^2.1.2"
+    "es6-promise": "^4.2.4",
+    "isomorphic-fetch": "^2.2.1",
+    "murmurhash": "0.0.2"
   }
 }

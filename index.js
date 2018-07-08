@@ -1,4 +1,5 @@
-const fetch     = require("node-fetch")
+require('es6-promise').polyfill();
+require('isomorphic-fetch');
 const murmur    = require("murmurhash")
 const deepmerge = require("deepmerge")
 
@@ -64,7 +65,7 @@ const metricsProxy = {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
         if(!target.possibleMetrics.has(name)) console.warn(`Metric "${name}" is not registred`)
         return data => {
-            console.log(`sendMetric(${name}, ${data})`)
+            console.log(`sendMetric(${name}, ${JSON.stringify(data)})`)
         }
     },
 }
