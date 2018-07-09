@@ -6,6 +6,7 @@ const Influx    = require("influx")
 const os        = require('os')
 const util      = require("util")
 const uuidv4    = require('uuid/v4');
+const { Pool }  = require('pg')
 
 const query = `query TokenById($token: UUID!) {
     tokenById(id: $token) {
@@ -39,8 +40,35 @@ const query = `query TokenById($token: UUID!) {
 `
 
 const createMetricStorage = {
-    INFLUXDB: conf => new Influx.InfluxDB(conf)
+    INFLUXDB:   conf => new Influx.InfluxDB(conf),
+    POSTGRESQL: conf => new Pool(conf),
 }
+
+const sendMetric = {
+    INFLUXDB: async ({ metric, metricObj, experiments = {}, sessionId = "", data = {} } = {}) => {
+        const toSend = {
+            measurement: "metrics",
+            tags: {
+                ...experiments,
+                metric
+            },
+            fields: {
+                sessionId,
+                ...data,
+                metric,
+                host:       os.hostname(),
+            },
+        }
+        return await metricObj.writePoints([ toSend ])
+    },
+    POSTGRESQL: async ({ metric, metricObj, experiments = {}, sessionId = "", data = {} } = {}) => {
+        return await metricObj.query(
+            "insert into aybee_metrics.metric(metric, session_id, experiments, data) values($1, $2, $3, $4) returning *;",
+            [metric, sessionId, experiments, data]
+        )
+    },
+}
+
 const idsProxy = {
     get(target, name) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
@@ -130,9 +158,10 @@ class AyBee {
         if(body.data.tokenById === null) {
             throw "Invalid Token!!!"
         }
-        const metricConf = body.data.tokenById.metricConfig;
-        this._metric = createMetricStorage[metricConf.metricStorage.toUpperCase()](metricConf.conf)
-        const conf = body.data.tokenById.config.nodes
+        const metricConf    = body.data.tokenById.metricConfig;
+        this._metricStorage = metricConf.metricStorage.toUpperCase()
+        this._metric        = createMetricStorage[this._metricStorage](metricConf.conf)
+        const conf          = body.data.tokenById.config.nodes
         conf.forEach(c => {
             this.possibleIds = new Set([ ...this.possibleIds, c.identifier ])
             this._varsByExpVar = {
@@ -166,23 +195,14 @@ class AyBee {
         })
     }
 
-    async sendMetric(metric, data = {}) {
-        const toSend = {
-            measurement: "metrics",
-            tags: {
-                ...this.experiments,
-                metric
-            },
-            fields: {
-                sessionId: this.sessionId,
-                ...data,
-                metric,
-                host:       os.hostname(),
-            },
-        }
-
-        //console.log(`data:`, toSend)
-        return await this._metric.writePoints([ toSend ])
+    sendMetric(metric, data = {}) {
+        return sendMetric[this._metricStorage]({
+            metric,
+            data,
+            metricObj:      this._metric,
+            experiments:    this.experiments,
+            sessionId:      this.sessionId
+        })
     }
 }
 
