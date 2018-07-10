@@ -10,6 +10,11 @@ const { Pool }  = require('pg')
 
 const query = `query TokenById($token: UUID!) {
     tokenById(id: $token) {
+        metricType {
+          nodes {
+            name
+          }
+        }
         metricConfig {
             metricStorage
             conf
@@ -62,23 +67,24 @@ const sendMetric = {
         return await metricObj.writePoints([ toSend ])
     },
     POSTGRESQL: async ({ metric, metricObj, experiments = {}, sessionId = "", data = {} } = {}) => {
-        return await metricObj.query(
-            "insert into aybee_metrics.metric(metric, session_id, experiments, data) values($1, $2, $3, $4) returning *;",
-            [metric, sessionId, experiments, data]
-        )
+        const exp = { ...experiments, "": "" }
+        await Promise.all(Object.keys(exp).map(xp => metricObj.query(
+            "insert into aybee_metrics.metric(metric, session_id, experiment, variant, data) values($1, $2, $3, $4, $5) returning *;",
+            [metric, sessionId, xp, exp[xp], data]
+        )))
     },
 }
 
 const idsProxy = {
     get(target, name) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
-        if(!target.possibleIds.has(name)) return console.warn(`id "${name}" is not registred`)
+        if(!target.possibleIds.has(name)) return console.warn(new Error(`id "${name}" is not registred`))
         return target._idsValues[name]
     },
     set(target, name, value) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
         if(!target.possibleIds.has(name)) {
-            console.warn(`id "${name}" is not registred`)
+            console.warn(new Error(`id "${name}" is not registred`))
             return false
         }
         target.newSession()
@@ -158,10 +164,11 @@ class AyBee {
         if(body.data.tokenById === null) {
             throw "Invalid Token!!!"
         }
-        const metricConf    = body.data.tokenById.metricConfig;
-        this._metricStorage = metricConf.metricStorage.toUpperCase()
-        this._metric        = createMetricStorage[this._metricStorage](metricConf.conf)
-        const conf          = body.data.tokenById.config.nodes
+        this.possibleMetrics    = new Set(body.data.tokenById.metricType.nodes.map(type => type.name))
+        const metricConf        = body.data.tokenById.metricConfig;
+        this._metricStorage     = metricConf.metricStorage.toUpperCase()
+        this._metric            = createMetricStorage[this._metricStorage](metricConf.conf)
+        const conf              = body.data.tokenById.config.nodes
         conf.forEach(c => {
             this.possibleIds = new Set([ ...this.possibleIds, c.identifier ])
             this._varsByExpVar = {
