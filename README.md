@@ -14,7 +14,7 @@
     ayBee.ids.requestId = 456                           // warns if requestId is not registred
 
     console.log(Object.keys(ayBee.experiments))         // get all participants experiment names
-    if("exp 001" in ayBee.experiments) {                // if it's participating of experiment exp123
+    if("exp 001" in ayBee.experiments) {                // if it's participating of experiment exp 001
         console.log(`Exp: exp 001`)
         console.log(
             `Variant ${ayBee.experiments["exp 001"]}`   // get the variant
