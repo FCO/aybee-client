@@ -44,37 +44,6 @@ const query = `query TokenById($token: UUID!) {
 }
 `
 
-const createMetricStorage = {
-    INFLUXDB:   conf => new Influx.InfluxDB(conf),
-    POSTGRESQL: conf => new Pool(conf),
-}
-
-const sendMetric = {
-    INFLUXDB: async ({ metric, metricObj, experiments = {}, sessionId = "", data = {} } = {}) => {
-        const toSend = {
-            measurement: "metrics",
-            tags: {
-                ...experiments,
-                metric
-            },
-            fields: {
-                sessionId,
-                ...data,
-                metric,
-                host:       os.hostname(),
-            },
-        }
-        return await metricObj.writePoints([ toSend ])
-    },
-    POSTGRESQL: async ({ metric, metricObj, experiments = {}, sessionId = "", data = {} } = {}) => {
-        const exp = { ...experiments, "": "" }
-        await Promise.all(Object.keys(exp).map(xp => metricObj.query(
-            "insert into aybee_metrics.metric(metric, session_id, experiment, variant, data) values($1, $2, $3, $4, $5) returning *;",
-            [metric, sessionId, xp, exp[xp], data]
-        )))
-    },
-}
-
 const idsProxy = {
     get(target, name) {
         if (typeof(name) != "string" || name == util.inspect.custom || name == 'inspect' || name == 'valueOf' ) return;
@@ -167,7 +136,7 @@ class AyBee {
         this.possibleMetrics    = new Set(body.data.tokenById.metricType.nodes.map(type => type.name))
         const metricConf        = body.data.tokenById.metricConfig;
         this._metricStorage     = metricConf.metricStorage.toUpperCase()
-        this._metric            = createMetricStorage[this._metricStorage](metricConf.conf)
+        this._metric            = AyBee.createMetricStorage[this._metricStorage](metricConf.conf)
         const conf              = body.data.tokenById.config.nodes
         conf.forEach(c => {
             this.possibleIds = new Set([ ...this.possibleIds, c.identifier ])
@@ -203,7 +172,7 @@ class AyBee {
     }
 
     sendMetric(metric, data = {}) {
-        return sendMetric[this._metricStorage]({
+        return AyBee.sendMetric[this._metricStorage]({
             metric,
             data,
             metricObj:      this._metric,
@@ -211,6 +180,37 @@ class AyBee {
             sessionId:      this.sessionId
         })
     }
+}
+
+AyBee.createMetricStorage = {
+    INFLUXDB:   conf => new Influx.InfluxDB(conf),
+    POSTGRESQL: conf => new Pool(conf),
+}
+
+AyBee.sendMetric = {
+    INFLUXDB: async ({ metric, metricObj, experiments = {}, sessionId = "", data = {} } = {}) => {
+        const toSend = {
+            measurement: "metrics",
+            tags: {
+                ...experiments,
+                metric
+            },
+            fields: {
+                sessionId,
+                ...data,
+                metric,
+                host:       os.hostname(),
+            },
+        }
+        return await metricObj.writePoints([ toSend ])
+    },
+    POSTGRESQL: async ({ metric, metricObj, experiments = {}, sessionId = "", data = {} } = {}) => {
+        const exp = { ...experiments, "": "" }
+        await Promise.all(Object.keys(exp).map(xp => metricObj.query(
+            "insert into aybee_metrics.metric(metric, session_id, experiment, variant, data) values($1, $2, $3, $4, $5) returning *;",
+            [metric, sessionId, xp, exp[xp], data]
+        )))
+    },
 }
 
 AyBee.config = async token => {
