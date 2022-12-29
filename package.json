@@ -17,9 +17,9 @@
     "murmurhash": "0.0.2",
     "pg": "^7.4.3",
     "uuid": "^3.3.2",
-    "webpack": "^4.15.1"
+    "webpack": "^5.75.0"
   },
   "devDependencies": {
-    "webpack-cli": "^3.0.8"
+    "webpack-cli": "^5.0.1"
   }
 }
